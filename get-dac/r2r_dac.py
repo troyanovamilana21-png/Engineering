@@ -1,41 +1,63 @@
 import RPi.GPIO as GPIO
 
-R2R = [22, 27, 17, 26, 25, 21, 20, 16]
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(R2R, GPIO.OUT)
+DAC_VREF = 3.3
+DAC_BITS = 8
+DAC_MAX = 255
 
 class R2R_DAC:
-    def __init__(self, gpio_bits, dynamic_range, verbose = False):
+    def init(self, gpio_bits, dynamic_range, verbose=False):  # Исправлено: init
         self.gpio_bits = gpio_bits
         self.dynamic_range = dynamic_range
         self.verbose = verbose
         
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.gpio_bits, GPIO.OUT, initial = 0)
-def deinit(self):
-    GPIO.output(self.gpio_bits, 0)
-    GPIO.cleanup()
-def number_to_dac(number):
-    for i in range(DAC_BITS):
-        bit = (number >> i) & 1
-        GPIO.output(R2R[i], bit)
-def voltage_to_number(voltage):
-    if not (0.0 <= voltage <= DAC_VREF):
-        print(f"Напряжение выходит за динамический диапазон ЦАП (0..{DAC_VREF} B)")
-        print("Устанавливаем 0.0 B")
-        return 0
-    return int(voltage / DAC_VREF * 255)
-if name == "__main__":
+        GPIO.setup(self.gpio_bits, GPIO.OUT, initial=0)
+        
+        if self.verbose:
+            print(f"R2R DAC инициализирован на пинах: {gpio_bits}")
+            print(f"Динамический диапазон: {dynamic_range} В")
+    
+    def deinit(self):
+        GPIO.output(self.gpio_bits, 0)
+        GPIO.cleanup()
+        if self.verbose:
+            print("R2R DAC деинициализирован")
+    
+    def number_to_dac(self, number):
+        for i in range(len(self.gpio_bits)):
+            bit = (number >> i) & 1
+            GPIO.output(self.gpio_bits[i], bit)
+    
+    def voltage_to_number(self, voltage):
+        if not (0.0 <= voltage <= self.dynamic_range):
+            print(f"Напряжение выходит за динамический диапазон ЦАП (0..{self.dynamic_range} B)")
+            print("Устанавливаем 0.0 B")
+            return 0
+        return int(voltage / self.dynamic_range * DAC_MAX)  # Исправлено: используем DAC_MAX
+    
+    def set_voltage(self, voltage):
+        number = self.voltage_to_number(voltage)
+        self.number_to_dac(number)
+        if self.verbose:
+            print(f"Установлено напряжение: {voltage:.3f} В (код: {number})")
+
+if name == "main":
     try:
-        dac = R2R_DAC([16, 20, 21, 25, 26, 17, 27, 22], 3.183, True)
+        dac = R2R_DAC([16, 20, 21, 25, 26, 17, 27, 22], 3.183, True)  # Теперь правильно создается объект
         
         while True:
             try:
                 voltage = float(input("Введите напряжение в Вольтах: "))
                 dac.set_voltage(voltage)
+                print()  # Пустая строка для читаемости
 
             except ValueError:
                 print("Вы ввели не число. Попробуйте ещё раз\n")
+            except KeyboardInterrupt:
+                print("\nПрограмма завершена пользователем")
+                break
 
+    except Exception as e:
+        print(f"Произошла ошибка: {e}")
     finally:
         dac.deinit()
